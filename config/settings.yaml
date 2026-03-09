@@ -1,0 +1,20 @@
+input_dir: "input/originals"
+output_display_dir: "output/display"
+output_thumb_dir: "output/thumbs"
+output_metadata_dir: "output/metadata"
+output_logs_dir: "output/logs"
+
+thumb_max_size: 800
+display_max_size: 2400
+
+thumb_quality: 75
+display_quality: 85
+
+supported_extensions:
+  - ".jpg"
+  - ".jpeg"
+  - ".png"
+
+default_author: "Luke Chu"
+
+overwrite: false
