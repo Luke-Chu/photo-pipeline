@@ -136,6 +136,7 @@ def extract_image_metadata(image_path: Path, default_author: str = "Luke Chu") -
         "metering_mode": None,
         "exposure_program": None,
         "white_balance": None,
+        "flash": None,
         "color_temperature": None,
         "color_space": None,
         "bit_depth": None,
@@ -181,9 +182,21 @@ def extract_image_metadata(image_path: Path, default_author: str = "Luke Chu") -
         metadata["metering_mode"] = exif_ifd.get(piexif.ExifIFD.MeteringMode)
         metadata["exposure_program"] = exif_ifd.get(piexif.ExifIFD.ExposureProgram)
         metadata["white_balance"] = exif_ifd.get(piexif.ExifIFD.WhiteBalance)
+        metadata["flash"] = exif_ifd.get(piexif.ExifIFD.Flash)
+        if metadata["metering_mode"] is not None:
+            metadata["raw_exif"].setdefault("MeteringMode", _to_json_safe(metadata["metering_mode"]))
+        if metadata["exposure_program"] is not None:
+            metadata["raw_exif"].setdefault("ExposureProgram", _to_json_safe(metadata["exposure_program"]))
+        if metadata["white_balance"] is not None:
+            metadata["raw_exif"].setdefault("WhiteBalance", _to_json_safe(metadata["white_balance"]))
+        if metadata["flash"] is not None:
+            metadata["raw_exif"].setdefault("Flash", _to_json_safe(metadata["flash"]))
 
         # 有些图没有色温
         color_temp = exif_ifd.get(piexif.ExifIFD.Temperature)
         metadata["color_temperature"] = str(color_temp) if color_temp is not None else None
+        color_space = exif_ifd.get(piexif.ExifIFD.ColorSpace)
+        if color_space is not None:
+            metadata["color_space"] = _to_json_safe(color_space)
 
     return metadata

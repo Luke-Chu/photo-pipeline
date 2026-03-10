@@ -19,6 +19,61 @@ default_author: "Luke Chu"
 
 overwrite: false
 
+# ===== EXIF enum term mappings =====
+exif_term_mappings:
+  metering_mode:
+    "0": "Unknown"
+    "1": "Average Metering"
+    "2": "Center-Weighted Average Metering"
+    "3": "Spot Metering"
+    "4": "Multi-Spot Metering"
+    "5": "Pattern/Matrix Metering"
+    "6": "Partial Metering"
+    "255": "Other Metering Mode"
+    default: "Unmapped Metering Mode"
+
+  exposure_program:
+    "0": "Not Defined"
+    "1": "Manual"
+    "2": "Program AE"
+    "3": "Aperture Priority AE"
+    "4": "Shutter Priority AE"
+    "5": "Creative Program"
+    "6": "Action Program"
+    "7": "Portrait Program"
+    "8": "Landscape Program"
+    default: "Unmapped Exposure Program"
+
+  white_balance:
+    "0": "Auto White Balance"
+    "1": "Manual White Balance"
+    default: "Unmapped White Balance"
+
+  flash:
+    "0": "Flash Did Not Fire"
+    "1": "Flash Fired"
+    "5": "Flash Fired, Return Not Detected"
+    "7": "Flash Fired, Return Detected"
+    "9": "Flash Fired (Compulsory)"
+    "13": "Flash Fired (Compulsory), Return Not Detected"
+    "15": "Flash Fired (Compulsory), Return Detected"
+    "16": "Flash Off"
+    "24": "Auto Flash, Did Not Fire"
+    "25": "Auto Flash, Fired"
+    "29": "Auto Flash, Fired, Return Not Detected"
+    "31": "Auto Flash, Fired, Return Detected"
+    "32": "No Flash Function"
+    "65": "Red-Eye Reduction, Flash Fired"
+    "69": "Red-Eye Reduction, Return Not Detected"
+    "71": "Red-Eye Reduction, Return Detected"
+    "73": "Auto Flash, Red-Eye Reduction, Did Not Fire"
+    "77": "Auto Flash, Red-Eye Reduction, Fired"
+    "79": "Auto Flash, Red-Eye Reduction, Return Detected"
+    "89": "Compulsory Flash, Red-Eye Reduction, Fired"
+    "93": "Compulsory Flash, Red-Eye Reduction, Return Not Detected"
+    "95": "Compulsory Flash, Red-Eye Reduction, Return Detected"
+    default: "Unmapped Flash Status"
+
 # ===== AI metadata generation =====
 qwen_model_path: "C:/Users/Luke/.cache/modelscope/hub/models/Qwen/Qwen3-VL-4B-Instruct"
 qwen_processor_path: "C:/Users/Luke/.cache/modelscope/hub/models/Qwen/Qwen3-VL-4B-Instruct"

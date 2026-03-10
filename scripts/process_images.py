@@ -37,7 +37,43 @@ def make_json_safe(value):
     if isinstance(value, dict):
         return {str(k): make_json_safe(v) for k, v in value.items()}
     return str(value)
-    
+
+
+def normalize_mapping(mapping: Any) -> Dict[str, str]:
+    if not isinstance(mapping, dict):
+        return {}
+    return {str(k): str(v) for k, v in mapping.items()}
+
+
+def map_exif_value(value: Any, mapping: Dict[str, str]) -> str | None:
+    if value is None:
+        return None
+
+    safe_value = make_json_safe(value)
+    candidate_keys: List[str] = [str(safe_value)]
+    try:
+        candidate_keys.append(str(int(safe_value)))
+    except Exception:
+        pass
+
+    for key in candidate_keys:
+        if key in mapping:
+            return mapping[key]
+
+    default_term = mapping.get("default", "Unknown")
+    return f"{default_term} ({safe_value})"
+
+
+def enrich_raw_exif(raw_exif: Any, metadata: Dict[str, Any]) -> Dict[str, Any]:
+    enriched = make_json_safe(raw_exif) if raw_exif is not None else {}
+    if not isinstance(enriched, dict):
+        enriched = {}
+
+    enriched["color_temperature"] = metadata.get("color_temperature")
+    enriched["color_space"] = metadata.get("color_space")
+    enriched["bit_depth"] = metadata.get("bit_depth")
+    return enriched
+
 
 def load_config(config_path: Path) -> Dict[str, Any]:
     with open(config_path, "r", encoding="utf-8") as f:
@@ -246,6 +282,11 @@ def main() -> None:
     supported_extensions = config["supported_extensions"]
     default_author = config["default_author"]
     overwrite = bool(config["overwrite"])
+    exif_mappings = config.get("exif_term_mappings", {})
+    metering_mode_mapping = normalize_mapping(exif_mappings.get("metering_mode"))
+    exposure_program_mapping = normalize_mapping(exif_mappings.get("exposure_program"))
+    white_balance_mapping = normalize_mapping(exif_mappings.get("white_balance"))
+    flash_mapping = normalize_mapping(exif_mappings.get("flash"))
 
     ensure_dirs([
         input_dir,
@@ -269,7 +310,8 @@ def main() -> None:
             metadata = extract_image_metadata(image_path, default_author=default_author)
             shot_time = metadata.get("shot_time")
             shot_time_parts = extract_shot_time_parts(shot_time)
-            
+            raw_exif = enrich_raw_exif(metadata.get("raw_exif"), metadata)
+             
             uuid, new_filename = build_new_filename(metadata, image_path)
             year_month_day = year_month_day_from_shot_time(shot_time)
             output_display_path = output_display_dir / year_month_day / new_filename
@@ -321,17 +363,15 @@ def main() -> None:
                 "iso": metadata["iso"],
                 "focal_length": metadata["focal_length"],
                 "focal_length_35mm": metadata["focal_length_35mm"],
-                "metering_mode": metadata["metering_mode"],
-                "exposure_program": metadata["exposure_program"],
-                "white_balance": metadata["white_balance"],
-                "color_temperature": metadata["color_temperature"],
-                "color_space": metadata["color_space"],
-                "bit_depth": metadata["bit_depth"],
+                "metering_mode": map_exif_value(metadata["metering_mode"], metering_mode_mapping),
+                "exposure_program": map_exif_value(metadata["exposure_program"], exposure_program_mapping),
+                "white_balance": map_exif_value(metadata["white_balance"], white_balance_mapping),
+                "flash": map_exif_value(metadata["flash"], flash_mapping),
                 "author": metadata["author"],
                 "thumb_path": str(output_thumb_path.relative_to(project_root)).replace("\\", "/"),
                 "display_path": str(output_display_path.relative_to(project_root)).replace("\\", "/"),
                 "original_path": str(renamed_original_path.relative_to(project_root)).replace("\\", "/"),
-                "raw_exif": metadata["raw_exif"],
+                "raw_exif": raw_exif,
                 "ai_metadata": {},
                 "extra_metadata": {},
             }
