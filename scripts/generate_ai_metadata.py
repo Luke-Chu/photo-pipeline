@@ -236,6 +236,7 @@ def generate_single_result(
     temperature: float,
     top_p: float,
     do_sample: bool,
+    repetition_penalty: float,
 ) -> Dict[str, Any]:
     messages = [
         {
@@ -270,6 +271,7 @@ def generate_single_result(
             do_sample=do_sample,
             temperature=temperature if do_sample else None,
             top_p=top_p if do_sample else None,
+            repetition_penalty=repetition_penalty if repetition_penalty != 1.0 else None,
         )
 
     generated_ids_trimmed = [
@@ -353,6 +355,7 @@ def main() -> None:
     temperature = float(config["ai_temperature"])
     top_p = float(config["ai_top_p"])
     do_sample = bool(config["ai_do_sample"])
+    repetition_penalty = float(config["ai_repetition_penalty"])
     prompt_version = str(config["ai_prompt_version"])
 
     prompt_text = load_prompt(prompt_path)
@@ -402,6 +405,7 @@ def main() -> None:
                 temperature=temperature,
                 top_p=top_p,
                 do_sample=do_sample,
+                repetition_penalty=repetition_penalty,
             )
 
             merged_record = merge_record_with_ai(

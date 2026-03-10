@@ -75,8 +75,8 @@ exif_term_mappings:
     default: "Unmapped Flash Status"
 
 # ===== AI metadata generation =====
-qwen_model_path: "C:/Users/Luke/.cache/modelscope/hub/models/Qwen/Qwen3-VL-4B-Instruct"
-qwen_processor_path: "C:/Users/Luke/.cache/modelscope/hub/models/Qwen/Qwen3-VL-4B-Instruct"
+qwen_model_path: "C:/Users/Luke/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct"
+qwen_processor_path: "C:/Users/Luke/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct"
 
 ai_prompt_file: "prompts/photo_metadata_prompt.txt"
 
@@ -91,10 +91,11 @@ ai_image_source: "thumb"
 ai_skip_completed: true
 
 # 推理参数
-ai_max_new_tokens: 256
-ai_temperature: 0.2
-ai_top_p: 0.9
-ai_do_sample: false
+ai_max_new_tokens: 320
+ai_temperature: 0.8
+ai_top_p: 0.95
+ai_do_sample: true
+ai_repetition_penalty: 1.08
 
 # 断点续跑
 ai_resume: true
