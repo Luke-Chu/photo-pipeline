@@ -4,6 +4,7 @@ import csv
 import json
 import logging
 import hashlib
+import re
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -64,12 +65,6 @@ def iter_images(input_dir: Path, extensions: List[str]) -> List[Path]:
     files = [p for p in input_dir.rglob("*") if p.is_file() and p.suffix.lower() in exts]
     files.sort()
     return files
-
-
-def build_uuid(image_path: Path) -> str:
-    digest = hashlib.md5(str(image_path).encode("utf-8")).hexdigest()[:10]
-    stem = image_path.stem.replace(" ", "_")
-    return f"{stem}_{digest}"
 
 
 def year_month_day_from_shot_time(shot_time: str | None) -> str:
@@ -135,13 +130,20 @@ def write_csv(records: List[Dict[str, Any]], output_path: Path) -> None:
 
 def short_hash(text):
     return hashlib.md5(text.encode()).hexdigest()[:4]
-    
+
+
+def is_normalized_filename(filename: str) -> bool:
+    return re.fullmatch(r"(?:\d{8}_\d{6}|unknown_time)_[0-9a-f]{4}\.jpg", filename.lower()) is not None
+
 
 def build_new_filename(metadata, image_path):
     """
     生成统一文件名
     格式：YYYYMMDD_HHMMSS_原文件名.jpg
     """
+    if is_normalized_filename(image_path.name):
+        return image_path.stem, image_path.name
+
     shot_time = metadata.get("shot_time")
 
     if shot_time:
@@ -151,12 +153,28 @@ def build_new_filename(metadata, image_path):
     else:
         dt = "unknown_time"
 
-    original = image_path.stem.replace(" ", "_")
     hash_part = short_hash(image_path.name)
+    uuid = f"{dt}_{hash_part}"
 
-    return f"{dt}_{hash_part}.jpg"
-    
-    
+    return f"{uuid}", f"{uuid}.jpg"
+
+
+def rename_original_image(image_path: Path, new_filename: str, overwrite: bool) -> Path:
+    renamed_path = image_path.with_name(new_filename)
+    if renamed_path == image_path:
+        return image_path
+
+    if renamed_path.exists():
+        if not overwrite:
+            raise FileExistsError(f"Target original filename already exists: {renamed_path}")
+        if renamed_path.is_dir():
+            raise IsADirectoryError(f"Target path is a directory: {renamed_path}")
+        renamed_path.unlink()
+
+    image_path.rename(renamed_path)
+    return renamed_path
+
+
 def main() -> None:
     project_root = Path(__file__).resolve().parent.parent
     config = load_config(project_root / "config" / "settings.yaml")
@@ -195,9 +213,8 @@ def main() -> None:
             logging.info("[%d/%d] Processing %s", idx, len(image_files), image_path.name)
 
             metadata = extract_image_metadata(image_path, default_author=default_author)
-            uuid = build_uuid(image_path)
             
-            new_filename = build_new_filename(metadata, image_path)
+            uuid, new_filename = build_new_filename(metadata, image_path)
             year_month_day = year_month_day_from_shot_time(metadata.get("shot_time"))
             output_display_path = output_display_dir / year_month_day / new_filename
             output_thumb_path = output_thumb_dir / year_month_day / new_filename
@@ -216,10 +233,13 @@ def main() -> None:
                 thumb_quality,
                 overwrite,
             )
+            renamed_original_path = rename_original_image(image_path, new_filename, overwrite)
+            if renamed_original_path != image_path:
+                logging.info("Renamed original: %s -> %s", image_path.name, renamed_original_path.name)
 
             record = {
                 "uuid": uuid,
-                "original_filename": metadata["original_filename"],
+                "original_filename": renamed_original_path.name,
                 "new_filename": new_filename,
                 "title_cn": None,
                 "title_en": None,
@@ -251,7 +271,7 @@ def main() -> None:
                 "author": metadata["author"],
                 "thumb_path": str(output_thumb_path.relative_to(project_root)).replace("\\", "/"),
                 "display_path": str(output_display_path.relative_to(project_root)).replace("\\", "/"),
-                "original_path": str(image_path.relative_to(project_root)).replace("\\", "/"),
+                "original_path": str(renamed_original_path.relative_to(project_root)).replace("\\", "/"),
                 "raw_exif": metadata["raw_exif"],
                 "ai_metadata": {},
                 "extra_metadata": {},
