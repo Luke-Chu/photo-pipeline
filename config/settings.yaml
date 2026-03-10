@@ -75,9 +75,8 @@ exif_term_mappings:
     default: "Unmapped Flash Status"
 
 # ===== AI metadata generation =====
-# Qwen model/processor path is loaded from environment variables:
-# - QWEN_MODEL_PATH (required)
-# - QWEN_PROCESSOR_PATH (optional, defaults to QWEN_MODEL_PATH)
+qwen_model_path: "C:/Users/Luke/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct"
+qwen_processor_path: "C:/Users/Luke/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct"
 
 ai_prompt_file: "prompts/photo_metadata_prompt.txt"
 
@@ -103,3 +102,10 @@ ai_resume: true
 
 # prompt 版本号，便于后面区分
 ai_prompt_version: "v1"
+
+# ===== PostgreSQL import =====
+pg_host: "127.0.0.1"
+pg_port: 5432
+pg_database: "luke-chu-site"
+pg_user: "admin"
+pg_password: "1234"

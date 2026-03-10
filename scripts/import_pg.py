@@ -3,12 +3,13 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
 import re
 import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+import yaml
 
 
 TAG_TYPE_TO_FIELD = {
@@ -21,32 +22,9 @@ NUMBER_PATTERN = re.compile(r"[-+]?\d+(?:\.\d+)?")
 UUID_FALLBACK_NAMESPACE = uuid.UUID("d5f69b79-58ad-4fcb-a268-9e0336d90f3d")
 
 
-def load_dotenv_file(path: Path, *, override: bool) -> None:
-    if not path.exists():
-        return
-
-    for line in path.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#") or "=" not in stripped:
-            continue
-        key, value = stripped.split("=", 1)
-        key = key.strip().lstrip("\ufeff")
-        value = value.strip().strip("\"'")
-        if not key:
-            continue
-        if override or key not in os.environ:
-            os.environ[key] = value
-
-
-def load_env(project_root: Path) -> None:
-    load_dotenv_file(project_root / ".env", override=False)
-
-
-def require_env(name: str) -> str:
-    value = os.getenv(name, "").strip()
-    if not value:
-        raise RuntimeError(f"Missing required environment variable: {name}")
-    return value
+def load_config(config_path: Path) -> Dict[str, Any]:
+    with config_path.open("r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
 
 
 def setup_logging(level: str) -> None:
@@ -393,11 +371,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default="output/metadata/import_pg_failed.jsonl",
         help="Path to write failed records.",
     )
-    parser.add_argument("--db-host", default=None, help="PostgreSQL host. Default from PGHOST.")
-    parser.add_argument("--db-port", type=int, default=None, help="PostgreSQL port. Default from PGPORT.")
-    parser.add_argument("--db-name", default=None, help="PostgreSQL database. Default from PGDATABASE.")
-    parser.add_argument("--db-user", default=None, help="PostgreSQL user. Default from PGUSER.")
-    parser.add_argument("--db-password", default=None, help="PostgreSQL password. Default from PGPASSWORD.")
+    parser.add_argument("--db-host", default=None, help="PostgreSQL host. Default from settings.yaml pg_host.")
+    parser.add_argument("--db-port", type=int, default=None, help="PostgreSQL port. Default from settings.yaml pg_port.")
+    parser.add_argument("--db-name", default=None, help="PostgreSQL database. Default from settings.yaml pg_database.")
+    parser.add_argument("--db-user", default=None, help="PostgreSQL user. Default from settings.yaml pg_user.")
+    parser.add_argument("--db-password", default=None, help="PostgreSQL password. Default from settings.yaml pg_password.")
     parser.add_argument("--log-level", default="INFO", help="Logging level, e.g. INFO/DEBUG/WARNING.")
     parser.add_argument("--stop-on-error", action="store_true", help="Stop immediately when one record fails.")
     return parser
@@ -405,17 +383,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     project_root = Path(__file__).resolve().parent.parent
-    load_env(project_root)
+    config = load_config(project_root / "config" / "settings.yaml")
 
     parser = build_arg_parser()
     args = parser.parse_args()
     setup_logging(args.log_level)
 
-    db_host = args.db_host or require_env("PGHOST")
-    db_port = args.db_port if args.db_port is not None else int(require_env("PGPORT"))
-    db_name = args.db_name or require_env("PGDATABASE")
-    db_user = args.db_user or require_env("PGUSER")
-    db_password = args.db_password or require_env("PGPASSWORD")
+    db_host = args.db_host or str(config["pg_host"])
+    db_port = args.db_port if args.db_port is not None else int(config["pg_port"])
+    db_name = args.db_name or str(config["pg_database"])
+    db_user = args.db_user or str(config["pg_user"])
+    db_password = args.db_password or str(config["pg_password"])
 
     try:
         import psycopg2  # type: ignore

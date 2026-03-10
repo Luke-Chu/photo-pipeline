@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -16,34 +15,6 @@ from transformers import Qwen3VLForConditionalGeneration, AutoProcessor
 VALID_CATEGORIES = {
     "风光", "城市", "街拍", "建筑", "人文", "旅行", "自然", "夜景", "纪实"
 }
-
-
-def load_dotenv_file(path: Path, *, override: bool) -> None:
-    if not path.exists():
-        return
-
-    for line in path.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#") or "=" not in stripped:
-            continue
-        key, value = stripped.split("=", 1)
-        key = key.strip().lstrip("\ufeff")
-        value = value.strip().strip("\"'")
-        if not key:
-            continue
-        if override or key not in os.environ:
-            os.environ[key] = value
-
-
-def load_env(project_root: Path) -> None:
-    load_dotenv_file(project_root / ".env", override=False)
-
-
-def require_env(name: str) -> str:
-    value = os.getenv(name, "").strip()
-    if not value:
-        raise RuntimeError(f"Missing required environment variable: {name}")
-    return value
 
 
 def load_config(config_path: Path) -> Dict[str, Any]:
@@ -365,7 +336,6 @@ def should_skip_record(record: Dict[str, Any], skip_completed: bool) -> bool:
 
 def main() -> None:
     project_root = Path(__file__).resolve().parent.parent
-    load_env(project_root)
     config = load_config(project_root / "config" / "settings.yaml")
 
     setup_logging(project_root / config["output_logs_dir"])
@@ -375,8 +345,8 @@ def main() -> None:
     output_jsonl = project_root / config["ai_output_jsonl"]
     failed_jsonl = project_root / config["ai_failed_jsonl"]
 
-    qwen_model_path = require_env("QWEN_MODEL_PATH")
-    qwen_processor_path = os.getenv("QWEN_PROCESSOR_PATH", "").strip() or qwen_model_path
+    qwen_model_path = config["qwen_model_path"]
+    qwen_processor_path = config.get("qwen_processor_path", qwen_model_path)
     image_source = config["ai_image_source"]
     skip_completed = bool(config["ai_skip_completed"])
     resume = bool(config["ai_resume"])
