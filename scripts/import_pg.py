@@ -18,6 +18,7 @@ TAG_TYPE_TO_FIELD = {
 }
 
 NUMBER_PATTERN = re.compile(r"[-+]?\d+(?:\.\d+)?")
+UUID_FALLBACK_NAMESPACE = uuid.UUID("d5f69b79-58ad-4fcb-a268-9e0336d90f3d")
 
 
 def load_dotenv_file(path: Path, *, override: bool) -> None:
@@ -72,14 +73,18 @@ def write_jsonl(path: Path, records: List[Dict[str, Any]]) -> None:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
-def parse_optional_uuid(value: Any) -> Optional[str]:
+def parse_record_uuid(value: Any) -> Tuple[Optional[str], Optional[str]]:
     text = str(value or "").strip()
     if not text:
-        return None
+        return None, None
     try:
-        return str(uuid.UUID(text))
+        normalized_uuid = str(uuid.UUID(text))
+        return normalized_uuid, text
     except Exception:
-        return None
+        # Input JSONL uses non-RFC UUID ids (e.g. 20241231_234434_f967).
+        # Generate a stable UUIDv5 so photos.uuid can always be populated.
+        generated_uuid = str(uuid.uuid5(UUID_FALLBACK_NAMESPACE, text))
+        return generated_uuid, text
 
 
 def parse_optional_datetime(value: Any) -> Optional[datetime]:
@@ -169,8 +174,10 @@ def normalize_tag_list(value: Any) -> List[str]:
 
 
 def build_photo_payload(record: Dict[str, Any]) -> Dict[str, Any]:
+    db_uuid, source_uuid = parse_record_uuid(record.get("uuid"))
+
     payload: Dict[str, Any] = {
-        "uuid": parse_optional_uuid(record.get("uuid")),
+        "uuid": db_uuid,
         "filename": normalize_string(record.get("filename")),
         "title_cn": normalize_string(record.get("title_cn")),
         "title_en": normalize_string(record.get("title_en")),
@@ -208,8 +215,7 @@ def build_photo_payload(record: Dict[str, Any]) -> Dict[str, Any]:
         "is_published": bool(record.get("is_published", True)),
     }
 
-    source_uuid = normalize_string(record.get("uuid"))
-    if source_uuid and payload["uuid"] is None:
+    if source_uuid and source_uuid != db_uuid:
         payload["extra_metadata"] = dict(payload["extra_metadata"])
         payload["extra_metadata"]["source_uuid"] = source_uuid
 
@@ -229,7 +235,7 @@ PHOTO_COLUMNS: Sequence[str] = (
 )
 
 PHOTO_UPDATE_COLUMNS: Sequence[str] = (
-    "filename", "title_cn", "title_en", "description", "category", "shot_time",
+    "uuid", "filename", "title_cn", "title_en", "description", "category", "shot_time",
     "year", "month", "day", "hour", "minute", "second", "width", "height", "orientation",
     "resolution", "camera_model", "lens_model", "aperture", "shutter_speed", "iso",
     "focal_length", "focal_length_35mm", "metering_mode", "exposure_program", "white_balance",
@@ -294,6 +300,16 @@ def find_existing_photo_id(cur: Any, payload: Dict[str, Any]) -> Optional[int]:
     return None
 
 
+def find_photo_id_by_uuid(cur: Any, photo_uuid: Optional[str]) -> Optional[int]:
+    if not photo_uuid:
+        return None
+    cur.execute("SELECT id FROM photos WHERE uuid = %s LIMIT 1", (photo_uuid,))
+    row = cur.fetchone()
+    if row:
+        return int(row[0])
+    return None
+
+
 def insert_photo(cur: Any, payload: Dict[str, Any], json_adapter: Any) -> int:
     values = []
     for col in PHOTO_COLUMNS:
@@ -339,42 +355,17 @@ def update_photo_by_id(cur: Any, photo_id: int, payload: Dict[str, Any], json_ad
     return int(row[0])
 
 
-def upsert_photo_by_uuid(cur: Any, payload: Dict[str, Any], json_adapter: Any) -> int:
-    values = []
-    for col in PHOTO_COLUMNS:
-        value = payload[col]
-        if col in {"raw_exif", "ai_metadata", "extra_metadata"}:
-            value = json_adapter(value)
-        values.append(value)
-
-    placeholders = ", ".join(["%s"] * len(PHOTO_COLUMNS))
-    update_parts = ", ".join([f"{col} = EXCLUDED.{col}" for col in PHOTO_UPDATE_COLUMNS])
-
-    sql = f"""
-        INSERT INTO photos ({", ".join(PHOTO_COLUMNS)})
-        VALUES ({placeholders})
-        ON CONFLICT (uuid) DO UPDATE
-        SET {update_parts}
-        RETURNING id
-    """
-    cur.execute(sql, values)
-    row = cur.fetchone()
-    if not row:
-        raise RuntimeError("Failed to upsert photo by uuid")
-    return int(row[0])
-
-
 def import_single_record(cur: Any, record: Dict[str, Any], json_adapter: Any) -> int:
     payload = build_photo_payload(record)
 
-    if payload["uuid"]:
-        photo_id = upsert_photo_by_uuid(cur, payload, json_adapter)
-    else:
+    existing_id = find_photo_id_by_uuid(cur, payload["uuid"])
+    if existing_id is None:
         existing_id = find_existing_photo_id(cur, payload)
-        if existing_id is None:
-            photo_id = insert_photo(cur, payload, json_adapter)
-        else:
-            photo_id = update_photo_by_id(cur, existing_id, payload, json_adapter)
+
+    if existing_id is None:
+        photo_id = insert_photo(cur, payload, json_adapter)
+    else:
+        photo_id = update_photo_by_id(cur, existing_id, payload, json_adapter)
 
     tag_ids: List[int] = []
     for tag_type, field_name in TAG_TYPE_TO_FIELD.items():
