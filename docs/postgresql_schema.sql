@@ -113,4 +113,9 @@ CREATE INDEX IF NOT EXISTS idx_photos_download_count_desc ON photos (download_co
 CREATE INDEX IF NOT EXISTS idx_photos_view_count_desc ON photos (view_count DESC);
 CREATE INDEX IF NOT EXISTS idx_photos_title_cn_trgm ON photos USING GIN (title_cn gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_tags_name ON tags (name);
+CREATE INDEX IF NOT EXISTS idx_tags_name_trgm ON tags USING GIN (name gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_photo_tags_tag_id ON photo_tags (tag_id);
+CREATE INDEX IF NOT EXISTS idx_photos_published_shot_time ON photos (is_published, shot_time DESC);
+CREATE INDEX IF NOT EXISTS idx_photos_published_like_count ON photos (is_published, like_count DESC);
+CREATE INDEX IF NOT EXISTS idx_photos_published_view_count ON photos (is_published, view_count DESC);
+CREATE INDEX IF NOT EXISTS idx_photos_published_download_count ON photos (is_published, download_count DESC);
