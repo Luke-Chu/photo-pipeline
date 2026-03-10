@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any, Dict, Optional
 from PIL import Image, ExifTags
@@ -7,6 +8,8 @@ import piexif
 
 
 EXIF_TAGS = {v: k for k, v in ExifTags.TAGS.items()}
+RATING_TAG_ID = 18246
+RATING_PERCENT_TAG_ID = 18249
 
 
 def _to_json_safe(value: Any) -> Any:
@@ -115,6 +118,96 @@ def _build_raw_exif_dict(exif_data: Dict[int, Any]) -> Dict[str, Any]:
     return raw
 
 
+def _parse_int_value(value: Any) -> Optional[int]:
+    safe = _to_json_safe(value)
+    if safe is None:
+        return None
+    try:
+        return int(safe)
+    except Exception:
+        return None
+
+
+def _extract_rating_from_exif_dict(exif_dict: Dict[Any, Any]) -> tuple[Optional[int], Optional[int]]:
+    rating = None
+    rating_percent = None
+
+    if RATING_TAG_ID in exif_dict:
+        rating = _parse_int_value(exif_dict.get(RATING_TAG_ID))
+    if RATING_PERCENT_TAG_ID in exif_dict:
+        rating_percent = _parse_int_value(exif_dict.get(RATING_PERCENT_TAG_ID))
+
+    for key, value in exif_dict.items():
+        key_text = str(key).strip().lower()
+        if key_text == "rating" and rating is None:
+            rating = _parse_int_value(value)
+        elif key_text == "ratingpercent" and rating_percent is None:
+            rating_percent = _parse_int_value(value)
+
+    if rating is None and rating_percent is not None:
+        if rating_percent <= 5:
+            rating = rating_percent
+        else:
+            rating = round(rating_percent / 20)
+
+    return rating, rating_percent
+
+
+def _extract_rating_from_xmp_text(xmp_text: str) -> tuple[Optional[int], Optional[int]]:
+    patterns = [
+        r'xmp:Rating\s*=\s*"(-?\d+)"',
+        r"<xmp:Rating>\s*(-?\d+)\s*</xmp:Rating>",
+        r"MicrosoftPhoto:Rating\s*=\s*\"(-?\d+)\"",
+        r"<MicrosoftPhoto:Rating>\s*(-?\d+)\s*</MicrosoftPhoto:Rating>",
+    ]
+    percent_patterns = [
+        r"MicrosoftPhoto:RatingPercent\s*=\s*\"(-?\d+)\"",
+        r"<MicrosoftPhoto:RatingPercent>\s*(-?\d+)\s*</MicrosoftPhoto:RatingPercent>",
+    ]
+
+    rating = None
+    rating_percent = None
+    for pattern in patterns:
+        match = re.search(pattern, xmp_text, flags=re.IGNORECASE)
+        if match:
+            try:
+                rating = int(match.group(1))
+                break
+            except Exception:
+                continue
+
+    for pattern in percent_patterns:
+        match = re.search(pattern, xmp_text, flags=re.IGNORECASE)
+        if match:
+            try:
+                rating_percent = int(match.group(1))
+                break
+            except Exception:
+                continue
+
+    if rating is None and rating_percent is not None:
+        if rating_percent <= 5:
+            rating = rating_percent
+        else:
+            rating = round(rating_percent / 20)
+
+    return rating, rating_percent
+
+
+def _extract_rating_from_file_xmp(image_path: Path) -> tuple[Optional[int], Optional[int]]:
+    try:
+        raw_bytes = image_path.read_bytes()
+    except Exception:
+        return None, None
+
+    try:
+        text = raw_bytes.decode("utf-8", errors="ignore")
+    except Exception:
+        return None, None
+
+    return _extract_rating_from_xmp_text(text)
+
+
 def extract_image_metadata(image_path: Path, default_author: str = "Luke Chu") -> Dict[str, Any]:
     """
     提取图片基础信息 + EXIF 标准字段 + 原始 EXIF
@@ -142,6 +235,8 @@ def extract_image_metadata(image_path: Path, default_author: str = "Luke Chu") -
         "bit_depth": None,
         "raw_exif": {},
     }
+    rating: Optional[int] = None
+    rating_percent: Optional[int] = None
 
     with Image.open(image_path) as img:
         metadata["width"], metadata["height"] = img.size
@@ -150,8 +245,10 @@ def extract_image_metadata(image_path: Path, default_author: str = "Luke Chu") -
         metadata["color_space"] = img.mode
 
         exif_data = img.getexif()
+        exif_dict = dict(exif_data) if exif_data else {}
         if exif_data:
-            metadata["raw_exif"] = _build_raw_exif_dict(dict(exif_data))
+            metadata["raw_exif"] = _build_raw_exif_dict(exif_dict)
+        rating, rating_percent = _extract_rating_from_exif_dict(exif_dict)
 
         try:
             piexif_data = piexif.load(img.info.get("exif", b""))
@@ -162,6 +259,11 @@ def extract_image_metadata(image_path: Path, default_author: str = "Luke Chu") -
     if piexif_data:
         zeroth = piexif_data.get("0th", {})
         exif_ifd = piexif_data.get("Exif", {})
+        piexif_rating, piexif_rating_percent = _extract_rating_from_exif_dict(zeroth)
+        if rating is None:
+            rating = piexif_rating
+        if rating_percent is None:
+            rating_percent = piexif_rating_percent
 
         metadata["camera_model"] = _to_json_safe(zeroth.get(piexif.ImageIFD.Model))
         metadata["author"] = _to_json_safe(zeroth.get(piexif.ImageIFD.Artist)) or default_author
@@ -198,5 +300,17 @@ def extract_image_metadata(image_path: Path, default_author: str = "Luke Chu") -
         color_space = exif_ifd.get(piexif.ExifIFD.ColorSpace)
         if color_space is not None:
             metadata["color_space"] = _to_json_safe(color_space)
+
+    if rating is None or rating_percent is None:
+        xmp_rating, xmp_rating_percent = _extract_rating_from_file_xmp(image_path)
+        if rating is None:
+            rating = xmp_rating
+        if rating_percent is None:
+            rating_percent = xmp_rating_percent
+
+    if rating is not None:
+        metadata["raw_exif"]["Rating"] = rating
+    if rating_percent is not None:
+        metadata["raw_exif"]["RatingPercent"] = rating_percent
 
     return metadata
