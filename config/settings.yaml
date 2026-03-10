@@ -75,8 +75,9 @@ exif_term_mappings:
     default: "Unmapped Flash Status"
 
 # ===== AI metadata generation =====
-qwen_model_path: "C:/Users/Luke/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct"
-qwen_processor_path: "C:/Users/Luke/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct"
+# Qwen model/processor path is loaded from environment variables:
+# - QWEN_MODEL_PATH (required)
+# - QWEN_PROCESSOR_PATH (optional, defaults to QWEN_MODEL_PATH)
 
 ai_prompt_file: "prompts/photo_metadata_prompt.txt"
 

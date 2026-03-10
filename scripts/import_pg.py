@@ -42,6 +42,13 @@ def load_env(project_root: Path) -> None:
     load_dotenv_file(project_root / ".env", override=False)
 
 
+def require_env(name: str) -> str:
+    value = os.getenv(name, "").strip()
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
+
+
 def setup_logging(level: str) -> None:
     logging.basicConfig(
         level=getattr(logging, level.upper(), logging.INFO),
@@ -386,11 +393,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default="output/metadata/import_pg_failed.jsonl",
         help="Path to write failed records.",
     )
-    parser.add_argument("--db-host", default=os.getenv("PGHOST", "127.0.0.1"), help="PostgreSQL host.")
-    parser.add_argument("--db-port", type=int, default=int(os.getenv("PGPORT", "5432")), help="PostgreSQL port.")
-    parser.add_argument("--db-name", default=os.getenv("PGDATABASE", "luke-chu-site"), help="PostgreSQL database.")
-    parser.add_argument("--db-user", default=os.getenv("PGUSER", "admin"), help="PostgreSQL user.")
-    parser.add_argument("--db-password", default=os.getenv("PGPASSWORD", "1234"), help="PostgreSQL password.")
+    parser.add_argument("--db-host", default=None, help="PostgreSQL host. Default from PGHOST.")
+    parser.add_argument("--db-port", type=int, default=None, help="PostgreSQL port. Default from PGPORT.")
+    parser.add_argument("--db-name", default=None, help="PostgreSQL database. Default from PGDATABASE.")
+    parser.add_argument("--db-user", default=None, help="PostgreSQL user. Default from PGUSER.")
+    parser.add_argument("--db-password", default=None, help="PostgreSQL password. Default from PGPASSWORD.")
     parser.add_argument("--log-level", default="INFO", help="Logging level, e.g. INFO/DEBUG/WARNING.")
     parser.add_argument("--stop-on-error", action="store_true", help="Stop immediately when one record fails.")
     return parser
@@ -404,6 +411,12 @@ def main() -> None:
     args = parser.parse_args()
     setup_logging(args.log_level)
 
+    db_host = args.db_host or require_env("PGHOST")
+    db_port = args.db_port if args.db_port is not None else int(require_env("PGPORT"))
+    db_name = args.db_name or require_env("PGDATABASE")
+    db_user = args.db_user or require_env("PGUSER")
+    db_password = args.db_password or require_env("PGPASSWORD")
+
     try:
         import psycopg2  # type: ignore
         from psycopg2.extras import Json  # type: ignore
@@ -415,11 +428,11 @@ def main() -> None:
     records = read_jsonl(input_jsonl)
 
     conn = psycopg2.connect(
-        host=args.db_host,
-        port=args.db_port,
-        dbname=args.db_name,
-        user=args.db_user,
-        password=args.db_password,
+        host=db_host,
+        port=db_port,
+        dbname=db_name,
+        user=db_user,
+        password=db_password,
         connect_timeout=10,
     )
 
