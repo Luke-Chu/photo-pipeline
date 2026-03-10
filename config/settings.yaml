@@ -21,7 +21,7 @@ overwrite: false
 
 # ===== AI metadata generation =====
 qwen_model_path: "C:/Users/Luke/.cache/modelscope/hub/models/Qwen/Qwen3-VL-4B-Instruct"
-qwen_processor_path: "Qwen/Qwen3-VL-4B-Instruct"
+qwen_processor_path: "C:/Users/Luke/.cache/modelscope/hub/models/Qwen/Qwen3-VL-4B-Instruct"
 
 ai_prompt_file: "prompts/photo_metadata_prompt.txt"
 
@@ -29,8 +29,8 @@ ai_input_jsonl: "output/metadata/photos.jsonl"
 ai_output_jsonl: "output/metadata/photos_ai.jsonl"
 ai_failed_jsonl: "output/metadata/photos_ai_failed.jsonl"
 
-# 使用 display 图做识别，更快、更省显存
-ai_image_source: "display"
+# 使用 thumb 图做识别，更快、更省显存
+ai_image_source: "thumb"
 
 # 是否跳过已经有 title_cn 的记录
 ai_skip_completed: true
