@@ -5,6 +5,7 @@ import json
 import logging
 import hashlib
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -79,6 +80,49 @@ def year_month_day_from_shot_time(shot_time: str | None) -> str:
         if year.isdigit() and month.isdigit() and day.isdigit():
             return f"{year}-{month}-{day}"
     return "unknown/unknown"
+
+
+def extract_shot_time_parts(shot_time: str | None) -> Dict[str, int | None]:
+    parts = {
+        "year": None,
+        "month": None,
+        "day": None,
+        "hour": None,
+        "minute": None,
+        "second": None,
+    }
+    if not shot_time:
+        return parts
+
+    try:
+        dt = datetime.strptime(shot_time, "%Y-%m-%d %H:%M:%S")
+        parts["year"] = dt.year
+        parts["month"] = dt.month
+        parts["day"] = dt.day
+        parts["hour"] = dt.hour
+        parts["minute"] = dt.minute
+        parts["second"] = dt.second
+        return parts
+    except ValueError:
+        pass
+
+    try:
+        parts["year"] = int(shot_time[:4])
+        parts["month"] = int(shot_time[5:7])
+        parts["day"] = int(shot_time[8:10])
+        parts["hour"] = int(shot_time[11:13])
+        parts["minute"] = int(shot_time[14:16])
+        parts["second"] = int(shot_time[17:19])
+    except Exception:
+        return {
+            "year": None,
+            "month": None,
+            "day": None,
+            "hour": None,
+            "minute": None,
+            "second": None,
+        }
+    return parts
 
 
 def generate_resized_image(
@@ -223,9 +267,11 @@ def main() -> None:
             logging.info("[%d/%d] Processing %s", idx, len(image_files), image_path.name)
 
             metadata = extract_image_metadata(image_path, default_author=default_author)
+            shot_time = metadata.get("shot_time")
+            shot_time_parts = extract_shot_time_parts(shot_time)
             
             uuid, new_filename = build_new_filename(metadata, image_path)
-            year_month_day = year_month_day_from_shot_time(metadata.get("shot_time"))
+            year_month_day = year_month_day_from_shot_time(shot_time)
             output_display_path = output_display_dir / year_month_day / new_filename
             output_thumb_path = output_thumb_dir / year_month_day / new_filename
 
@@ -257,10 +303,13 @@ def main() -> None:
                 "subject_tags": [],
                 "element_tags": [],
                 "mood_tags": [],
-                "shot_time": metadata["shot_time"],
-                "year": int(metadata["shot_time"][:4]) if metadata["shot_time"] else None,
-                "month": int(metadata["shot_time"][5:7]) if metadata["shot_time"] else None,
-                "day": int(metadata["shot_time"][8:10]) if metadata["shot_time"] else None,
+                "shot_time": shot_time,
+                "year": shot_time_parts["year"],
+                "month": shot_time_parts["month"],
+                "day": shot_time_parts["day"],
+                "hour": shot_time_parts["hour"],
+                "minute": shot_time_parts["minute"],
+                "second": shot_time_parts["second"],
                 "width": metadata["width"],
                 "height": metadata["height"],
                 "orientation": classify_orientation(metadata["width"], metadata["height"]),

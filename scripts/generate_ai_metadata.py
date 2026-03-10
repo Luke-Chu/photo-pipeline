@@ -127,6 +127,13 @@ def clean_text(value: Any) -> str:
     return text
 
 
+def clean_english_title(value: Any) -> str:
+    text = clean_text(value)
+    if not text:
+        return ""
+    return text.strip(" .-_")
+
+
 def clean_tag_list(value: Any, min_count: int, max_count: int) -> List[str]:
     if not isinstance(value, list):
         return []
@@ -147,6 +154,7 @@ def clean_tag_list(value: Any, min_count: int, max_count: int) -> List[str]:
 
 def normalize_ai_result(raw_result: Dict[str, Any]) -> Dict[str, Any]:
     title_cn = clean_text(raw_result.get("title_cn"))
+    title_en = clean_english_title(raw_result.get("title_en"))
     description = clean_text(raw_result.get("description"))
     category = clean_text(raw_result.get("category"))
 
@@ -168,11 +176,15 @@ def normalize_ai_result(raw_result: Dict[str, Any]) -> Dict[str, Any]:
     if not title_cn:
         title_cn = "未命名作品"
 
+    if not title_en:
+        title_en = "Untitled Photo"
+
     if not description:
         description = "暂无描述。"
 
     return {
         "title_cn": title_cn[:40],
+        "title_en": title_en[:80],
         "description": description[:200],
         "category": category,
         "subject_tags": subject_tags,
@@ -291,6 +303,7 @@ def merge_record_with_ai(
     normalized = ai_result["normalized"]
 
     merged["title_cn"] = normalized["title_cn"]
+    merged["title_en"] = normalized["title_en"]
     merged["description"] = normalized["description"]
     merged["category"] = normalized["category"]
     merged["subject_tags"] = normalized["subject_tags"]
@@ -312,7 +325,11 @@ def should_skip_record(record: Dict[str, Any], skip_completed: bool) -> bool:
     if not skip_completed:
         return False
     title_cn = record.get("title_cn")
-    return bool(title_cn and str(title_cn).strip())
+    title_en = record.get("title_en")
+    return bool(
+        title_cn and str(title_cn).strip() and
+        title_en and str(title_en).strip()
+    )
 
 
 def main() -> None:
