@@ -182,14 +182,19 @@ def normalize_ai_result(raw_result: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def build_image_path(project_root: Path, record: Dict[str, Any], image_source: str) -> Path:
-    if image_source == "display":
+    source = str(image_source).strip().lower()
+
+    if source == "display":
         rel = record.get("display_path")
-    elif image_source == "original":
+    elif source == "original":
         rel = record.get("original_path")
-    elif image_source == "thumb":
+    elif source in {"thumb", "thumbs", "thumbnail"}:
         rel = record.get("thumb_path")
     else:
-        raise ValueError(f"Unsupported ai_image_source: {image_source}")
+        raise ValueError(
+            "Unsupported ai_image_source: "
+            f"{image_source}. Supported values: display, original, thumb/thumbs/thumbnail"
+        )
 
     if not rel:
         raise ValueError(f"Record {record.get('uuid')} missing image path for source={image_source}")
