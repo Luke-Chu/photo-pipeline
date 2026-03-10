@@ -394,6 +394,7 @@ def main() -> None:
     db_name = args.db_name or str(config["pg_database"])
     db_user = args.db_user or str(config["pg_user"])
     db_password = args.db_password or str(config["pg_password"])
+    db_timezone = str(config.get("pg_timezone", "Asia/Shanghai"))
 
     try:
         import psycopg2  # type: ignore
@@ -413,6 +414,10 @@ def main() -> None:
         password=db_password,
         connect_timeout=10,
     )
+    with conn.cursor() as cur:
+        cur.execute("SET TIME ZONE %s", (db_timezone,))
+    conn.commit()
+    logging.info("PostgreSQL session timezone: %s", db_timezone)
 
     success_count = 0
     fail_count = 0

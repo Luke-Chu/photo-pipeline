@@ -109,3 +109,4 @@ pg_port: 5432
 pg_database: "luke-chu-site"
 pg_user: "admin"
 pg_password: "1234"
+pg_timezone: "Asia/Shanghai"
