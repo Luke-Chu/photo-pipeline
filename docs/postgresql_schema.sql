@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS photos (
   lens_model TEXT,
   aperture VARCHAR(50),
   shutter_speed VARCHAR(50),
+  exposure_compensation VARCHAR(50),
   iso INTEGER,
   focal_length NUMERIC(8,2),
   focal_length_35mm NUMERIC(8,2),

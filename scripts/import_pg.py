@@ -183,6 +183,7 @@ def build_photo_payload(record: Dict[str, Any]) -> Dict[str, Any]:
         "lens_model": normalize_string(record.get("lens_model")),
         "aperture": normalize_string(record.get("aperture")),
         "shutter_speed": normalize_string(record.get("shutter_speed")),
+        "exposure_compensation": normalize_string(record.get("exposure_compensation")),
         "iso": parse_optional_int(record.get("iso")),
         "focal_length": parse_optional_float(record.get("focal_length")),
         "focal_length_35mm": parse_optional_float(record.get("focal_length_35mm")),
@@ -214,7 +215,7 @@ PHOTO_COLUMNS: Sequence[str] = (
     "uuid", "filename", "title_cn", "title_en", "description", "category", "shot_time",
     "year", "month", "day", "hour", "minute", "second", "width", "height", "orientation",
     "resolution", "camera_model", "lens_model", "aperture", "shutter_speed", "iso",
-    "focal_length", "focal_length_35mm", "metering_mode", "exposure_program", "white_balance",
+    "exposure_compensation", "focal_length", "focal_length_35mm", "metering_mode", "exposure_program", "white_balance",
     "flash", "author", "raw_exif", "ai_metadata", "extra_metadata", "thumb_url", "display_url",
     "original_url", "is_published",
 )
@@ -223,7 +224,7 @@ PHOTO_UPDATE_COLUMNS: Sequence[str] = (
     "uuid", "filename", "title_cn", "title_en", "description", "category", "shot_time",
     "year", "month", "day", "hour", "minute", "second", "width", "height", "orientation",
     "resolution", "camera_model", "lens_model", "aperture", "shutter_speed", "iso",
-    "focal_length", "focal_length_35mm", "metering_mode", "exposure_program", "white_balance",
+    "exposure_compensation", "focal_length", "focal_length_35mm", "metering_mode", "exposure_program", "white_balance",
     "flash", "author", "raw_exif", "ai_metadata", "extra_metadata", "thumb_url", "display_url",
     "original_url", "is_published",
 )

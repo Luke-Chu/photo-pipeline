@@ -100,6 +100,17 @@ def _format_focal_length(value: Any) -> Optional[str]:
     return f"{f:.1f}mm"
 
 
+def _format_exposure_compensation(value: Any) -> Optional[str]:
+    f = _rational_to_float(value)
+    if f is None:
+        return None
+    if abs(f) < 1e-9:
+        return "0EV"
+    if abs(f - round(f)) < 0.01:
+        return f"{f:+.0f}EV"
+    return f"{f:+.1f}EV"
+
+
 def _parse_exif_datetime(value: Any) -> Optional[str]:
     value = _to_json_safe(value)
     if not value:
@@ -223,6 +234,7 @@ def extract_image_metadata(image_path: Path, default_author: str = "Luke Chu") -
         "lens_model": None,
         "aperture": None,
         "shutter_speed": None,
+        "exposure_compensation": None,
         "iso": None,
         "focal_length": None,
         "focal_length_35mm": None,
@@ -276,6 +288,9 @@ def extract_image_metadata(image_path: Path, default_author: str = "Luke Chu") -
         metadata["lens_model"] = _to_json_safe(exif_ifd.get(piexif.ExifIFD.LensModel))
         metadata["aperture"] = _format_aperture(exif_ifd.get(piexif.ExifIFD.FNumber))
         metadata["shutter_speed"] = _format_shutter(exif_ifd.get(piexif.ExifIFD.ExposureTime))
+        metadata["exposure_compensation"] = _format_exposure_compensation(
+            exif_ifd.get(piexif.ExifIFD.ExposureBiasValue)
+        )
         metadata["iso"] = exif_ifd.get(piexif.ExifIFD.ISOSpeedRatings)
         metadata["focal_length"] = _format_focal_length(exif_ifd.get(piexif.ExifIFD.FocalLength))
         metadata["focal_length_35mm"] = _format_focal_length(
@@ -289,6 +304,11 @@ def extract_image_metadata(image_path: Path, default_author: str = "Luke Chu") -
             metadata["raw_exif"].setdefault("MeteringMode", _to_json_safe(metadata["metering_mode"]))
         if metadata["exposure_program"] is not None:
             metadata["raw_exif"].setdefault("ExposureProgram", _to_json_safe(metadata["exposure_program"]))
+        if metadata["exposure_compensation"] is not None:
+            metadata["raw_exif"].setdefault(
+                "ExposureBiasValue",
+                _to_json_safe(exif_ifd.get(piexif.ExifIFD.ExposureBiasValue)),
+            )
         if metadata["white_balance"] is not None:
             metadata["raw_exif"].setdefault("WhiteBalance", _to_json_safe(metadata["white_balance"]))
         if metadata["flash"] is not None:

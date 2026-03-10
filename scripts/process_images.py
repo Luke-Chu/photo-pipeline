@@ -360,6 +360,7 @@ def main() -> None:
                 "lens_model": metadata["lens_model"],
                 "aperture": metadata["aperture"],
                 "shutter_speed": metadata["shutter_speed"],
+                "exposure_compensation": metadata["exposure_compensation"],
                 "iso": metadata["iso"],
                 "focal_length": metadata["focal_length"],
                 "focal_length_35mm": metadata["focal_length_35mm"],
