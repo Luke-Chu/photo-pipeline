@@ -132,6 +132,16 @@ def short_hash(text):
     return hashlib.md5(text.encode()).hexdigest()[:4]
 
 
+def classify_orientation(width: int | None, height: int | None) -> str | None:
+    if width is None or height is None:
+        return None
+    if width > height:
+        return "landscape"
+    if width < height:
+        return "portrait"
+    return "square"
+
+
 def is_normalized_filename(filename: str) -> bool:
     return re.fullmatch(r"(?:\d{8}_\d{6}|unknown_time)_[0-9a-f]{4}\.jpg", filename.lower()) is not None
 
@@ -239,8 +249,7 @@ def main() -> None:
 
             record = {
                 "uuid": uuid,
-                "original_filename": renamed_original_path.name,
-                "new_filename": new_filename,
+                "filename": new_filename,
                 "title_cn": None,
                 "title_en": None,
                 "description": None,
@@ -254,6 +263,7 @@ def main() -> None:
                 "day": int(metadata["shot_time"][8:10]) if metadata["shot_time"] else None,
                 "width": metadata["width"],
                 "height": metadata["height"],
+                "orientation": classify_orientation(metadata["width"], metadata["height"]),
                 "resolution": metadata["resolution"],
                 "camera_model": metadata["camera_model"],
                 "lens_model": metadata["lens_model"],
