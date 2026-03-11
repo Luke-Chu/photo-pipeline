@@ -10,6 +10,119 @@ import piexif
 EXIF_TAGS = {v: k for k, v in ExifTags.TAGS.items()}
 RATING_TAG_ID = 18246
 RATING_PERCENT_TAG_ID = 18249
+TEXT_EXIF_TAGS = {
+    "ImageDescription",
+    "XPTitle",
+    "XPComment",
+    "XPSubject",
+    "XPKeywords",
+    "XPAuthor",
+    "UserComment",
+}
+
+
+def _clean_text_value(text: str) -> str:
+    # Remove NUL/control chars that frequently appear in EXIF text payloads.
+    return text.replace("\x00", "").strip()
+
+
+def _text_quality_score(text: str) -> float:
+    if not text:
+        return -1e9
+
+    score = 0.0
+    for ch in text:
+        code = ord(ch)
+        if ch == "\ufffd":
+            score -= 6.0
+        elif code < 32 and ch not in "\t\r\n":
+            score -= 4.0
+        elif 0x4E00 <= code <= 0x9FFF:
+            score += 3.5
+        elif 32 <= code <= 126:
+            score += 1.0
+        elif 0x00A0 <= code <= 0x024F:
+            score += 0.2
+        else:
+            score += 0.5
+    return score
+
+
+def _repair_mojibake_text(text: str) -> str:
+    original = _clean_text_value(text)
+    candidates = [original]
+
+    try:
+        candidates.append(original.encode("latin1").decode("utf-8"))
+    except Exception:
+        pass
+
+    cleaned = [_clean_text_value(c) for c in candidates if c]
+    if not cleaned:
+        return original
+
+    return max(cleaned, key=_text_quality_score)
+
+
+def _decode_text_bytes(data: bytes, tag_name: str) -> str:
+    payload = data
+    preferred_encodings = []
+
+    if tag_name == "UserComment" and len(data) >= 8:
+        prefix = data[:8]
+        if prefix.startswith(b"ASCII"):
+            payload = data[8:]
+            preferred_encodings = ["ascii", "utf-8", "gb18030"]
+        elif prefix.startswith(b"UNICODE"):
+            payload = data[8:]
+            preferred_encodings = ["utf-16", "utf-16le", "utf-16be", "utf-8", "gb18030"]
+        elif prefix.startswith(b"JIS"):
+            payload = data[8:]
+            preferred_encodings = ["shift_jis", "euc_jp", "utf-8"]
+
+    # XPTitle/XPComment/XPSubject/XPKeywords are usually UTF-16LE.
+    if tag_name.startswith("XP"):
+        preferred_encodings = ["utf-16le", "utf-16be", "utf-8", "gb18030"] + preferred_encodings
+
+    tried = set()
+    encodings = preferred_encodings + ["utf-8", "utf-16le", "utf-16be", "gb18030", "gbk", "latin1"]
+    candidates = []
+    for enc in encodings:
+        if enc in tried:
+            continue
+        tried.add(enc)
+        try:
+            decoded = payload.decode(enc)
+        except Exception:
+            continue
+        decoded = _repair_mojibake_text(decoded)
+        if decoded:
+            candidates.append(decoded)
+
+    if not candidates:
+        return _clean_text_value(str(data))
+
+    return max(candidates, key=_text_quality_score)
+
+
+def _decode_exif_text_value(value: Any, tag_name: str) -> Any:
+    if value is None:
+        return None
+
+    if isinstance(value, str):
+        return _repair_mojibake_text(value)
+
+    if isinstance(value, bytes):
+        return _decode_text_bytes(value, tag_name)
+
+    if isinstance(value, (list, tuple)):
+        if all(isinstance(v, int) and 0 <= v <= 255 for v in value):
+            try:
+                return _decode_text_bytes(bytes(value), tag_name)
+            except Exception:
+                return _to_json_safe(value)
+
+    return _to_json_safe(value)
 
 
 def _to_json_safe(value: Any) -> Any:
@@ -19,14 +132,14 @@ def _to_json_safe(value: Any) -> Any:
     if value is None:
         return None
 
-    if isinstance(value, (str, int, float, bool)):
+    if isinstance(value, str):
+        return _repair_mojibake_text(value)
+
+    if isinstance(value, (int, float, bool)):
         return value
 
     if isinstance(value, bytes):
-        try:
-            return value.decode("utf-8", errors="ignore").strip("\x00")
-        except Exception:
-            return str(value)
+        return _decode_text_bytes(value, tag_name="")
 
     # Pillow / EXIF 常见分数对象，例如 IFDRational
     if hasattr(value, "numerator") and hasattr(value, "denominator"):
@@ -125,7 +238,10 @@ def _build_raw_exif_dict(exif_data: Dict[int, Any]) -> Dict[str, Any]:
     raw = {}
     for tag_id, val in exif_data.items():
         tag_name = ExifTags.TAGS.get(tag_id, str(tag_id))
-        raw[tag_name] = _to_json_safe(val)
+        if tag_name in TEXT_EXIF_TAGS:
+            raw[tag_name] = _decode_exif_text_value(val, tag_name)
+        else:
+            raw[tag_name] = _to_json_safe(val)
     return raw
 
 
