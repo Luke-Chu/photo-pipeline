@@ -11,6 +11,9 @@ EXIF_TAGS = {v: k for k, v in ExifTags.TAGS.items()}
 RATING_TAG_ID = 18246
 RATING_PERCENT_TAG_ID = 18249
 TEXT_EXIF_TAGS = {
+    "Make",
+    "Model",
+    "Artist",
     "ImageDescription",
     "XPTitle",
     "XPComment",
@@ -22,8 +25,16 @@ TEXT_EXIF_TAGS = {
 
 
 def _clean_text_value(text: str) -> str:
-    # Remove NUL/control chars that frequently appear in EXIF text payloads.
-    return text.replace("\x00", "").strip()
+    # Remove NUL and non-printable control chars frequently seen in EXIF text.
+    cleaned_chars = []
+    for ch in text:
+        code = ord(ch)
+        if ch == "\x00":
+            continue
+        if code < 32 and ch not in ("\t", "\n", "\r"):
+            continue
+        cleaned_chars.append(ch)
+    return "".join(cleaned_chars).strip()
 
 
 def _text_quality_score(text: str) -> float:

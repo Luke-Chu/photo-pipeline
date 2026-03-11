@@ -121,14 +121,16 @@ def parse_optional_float(value: Any) -> Optional[float]:
 
 def parse_json_object(value: Any) -> Dict[str, Any]:
     if isinstance(value, dict):
-        return value
+        return sanitize_json_value(value)
     if isinstance(value, str):
         text = value.strip()
         if not text:
             return {}
         try:
             loaded = json.loads(text)
-            return loaded if isinstance(loaded, dict) else {}
+            if isinstance(loaded, dict):
+                return sanitize_json_value(loaded)
+            return {}
         except Exception:
             return {}
     return {}
@@ -137,8 +139,18 @@ def parse_json_object(value: Any) -> Dict[str, Any]:
 def normalize_string(value: Any) -> Optional[str]:
     if value is None:
         return None
-    text = str(value).strip()
+    text = str(value).replace("\x00", "").strip()
     return text or None
+
+
+def sanitize_json_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(k): sanitize_json_value(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [sanitize_json_value(v) for v in value]
+    if isinstance(value, str):
+        return value.replace("\x00", "")
+    return value
 
 
 def normalize_tag_list(value: Any) -> List[str]:

@@ -17,6 +17,28 @@ VALID_CATEGORIES = {
 }
 
 
+def sanitize_text(text: str) -> str:
+    cleaned_chars = []
+    for ch in text:
+        code = ord(ch)
+        if ch == "\x00":
+            continue
+        if code < 32 and ch not in ("\t", "\n", "\r"):
+            continue
+        cleaned_chars.append(ch)
+    return "".join(cleaned_chars)
+
+
+def sanitize_json_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(k): sanitize_json_value(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [sanitize_json_value(v) for v in value]
+    if isinstance(value, str):
+        return sanitize_text(value)
+    return value
+
+
 def load_config(config_path: Path) -> Dict[str, Any]:
     with open(config_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
@@ -54,7 +76,7 @@ def read_jsonl(path: Path) -> List[Dict[str, Any]]:
             if not line:
                 continue
             try:
-                records.append(json.loads(line))
+                records.append(sanitize_json_value(json.loads(line)))
             except json.JSONDecodeError as e:
                 raise ValueError(f"Invalid JSONL at line {line_no}: {e}") from e
     return records
@@ -64,13 +86,13 @@ def write_jsonl(records: List[Dict[str, Any]], path: Path) -> None:
     ensure_parent(path)
     with open(path, "w", encoding="utf-8") as f:
         for record in records:
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+            f.write(json.dumps(sanitize_json_value(record), ensure_ascii=False) + "\n")
 
 
 def append_jsonl(record: Dict[str, Any], path: Path) -> None:
     ensure_parent(path)
     with open(path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        f.write(json.dumps(sanitize_json_value(record), ensure_ascii=False) + "\n")
 
 
 def build_processed_uuid_set(output_jsonl: Path) -> Set[str]:
@@ -84,7 +106,7 @@ def build_processed_uuid_set(output_jsonl: Path) -> Set[str]:
             if not line:
                 continue
             try:
-                item = json.loads(line)
+                item = sanitize_json_value(json.loads(line))
                 uuid = item.get("uuid")
                 if uuid:
                     processed.add(uuid)
@@ -121,7 +143,7 @@ def extract_first_json_block(text: str) -> Dict[str, Any]:
 def clean_text(value: Any) -> str:
     if value is None:
         return ""
-    text = str(value).strip()
+    text = sanitize_text(str(value)).strip()
     text = text.replace("\n", " ").replace("\r", " ")
     text = re.sub(r"\s+", " ", text)
     return text

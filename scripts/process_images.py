@@ -15,10 +15,25 @@ from PIL import Image, ImageOps
 from extract_exif import extract_image_metadata
 
 
+def sanitize_text(text: str) -> str:
+    # Drop NUL and non-printable control chars that break JSON/DB ingestion.
+    cleaned_chars = []
+    for ch in text:
+        code = ord(ch)
+        if ch == "\x00":
+            continue
+        if code < 32 and ch not in ("\t", "\n", "\r"):
+            continue
+        cleaned_chars.append(ch)
+    return "".join(cleaned_chars)
+
+
 def make_json_safe(value):
     if value is None:
         return None
     if isinstance(value, (str, int, float, bool)):
+        if isinstance(value, str):
+            return sanitize_text(value)
         return value
     if isinstance(value, bytes):
         try:
