@@ -88,8 +88,25 @@ CREATE TABLE IF NOT EXISTS tags (
   name VARCHAR(100) NOT NULL,
   tag_type VARCHAR(20) NOT NULL CHECK (tag_type IN ('subject', 'element', 'mood')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CONSTRAINT uq_tags_name UNIQUE (name)
+  CONSTRAINT uq_tags_name_type UNIQUE (name, tag_type)
 );
+
+-- Migrate legacy unique constraint UNIQUE(name) to UNIQUE(name, tag_type).
+ALTER TABLE tags DROP CONSTRAINT IF EXISTS uq_tags_name;
+ALTER TABLE tags DROP CONSTRAINT IF EXISTS tags_name_key;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'uq_tags_name_type'
+      AND conrelid = 'tags'::regclass
+  ) THEN
+    ALTER TABLE tags
+    ADD CONSTRAINT uq_tags_name_type UNIQUE (name, tag_type);
+  END IF;
+END
+$$;
 
 CREATE TABLE IF NOT EXISTS photo_tags (
   photo_id BIGINT NOT NULL REFERENCES photos(id) ON DELETE CASCADE,

@@ -247,23 +247,39 @@ def ensure_tag(cur: Any, name: str, tag_type: str) -> int:
         """
         INSERT INTO tags (name, tag_type)
         VALUES (%s, %s)
-        ON CONFLICT (name) DO NOTHING
+        ON CONFLICT (name, tag_type) DO UPDATE
+        SET name = EXCLUDED.name
+        RETURNING id
         """,
         (name, tag_type),
     )
-    cur.execute("SELECT id, tag_type FROM tags WHERE name = %s", (name,))
     row = cur.fetchone()
     if not row:
-        raise RuntimeError(f"Failed to get tag id for name={name}")
-    tag_id, existing_type = row
-    if existing_type != tag_type:
-        logging.warning(
-            "Tag type mismatch for name=%s. Existing=%s, incoming=%s. Keep existing type.",
-            name,
-            existing_type,
-            tag_type,
-        )
-    return int(tag_id)
+        raise RuntimeError(f"Failed to get tag id for name={name}, tag_type={tag_type}")
+    return int(row[0])
+
+
+def migrate_tags_unique_constraint(cur: Any) -> None:
+    # Migrate old UNIQUE(name) constraint to UNIQUE(name, tag_type).
+    cur.execute("ALTER TABLE tags DROP CONSTRAINT IF EXISTS uq_tags_name")
+    cur.execute("ALTER TABLE tags DROP CONSTRAINT IF EXISTS tags_name_key")
+    cur.execute(
+        """
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1
+            FROM pg_constraint
+            WHERE conname = 'uq_tags_name_type'
+              AND conrelid = 'tags'::regclass
+          ) THEN
+            ALTER TABLE tags
+            ADD CONSTRAINT uq_tags_name_type UNIQUE (name, tag_type);
+          END IF;
+        END
+        $$;
+        """
+    )
 
 
 def replace_photo_tags(cur: Any, photo_id: int, tag_ids: Sequence[int]) -> None:
@@ -429,6 +445,7 @@ def main() -> None:
     )
     with conn.cursor() as cur:
         cur.execute("SET TIME ZONE %s", (db_timezone,))
+        migrate_tags_unique_constraint(cur)
     conn.commit()
     logging.info("PostgreSQL session timezone: %s", db_timezone)
 
