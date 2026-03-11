@@ -122,6 +122,28 @@ CREATE TABLE IF NOT EXISTS photo_likes (
   CONSTRAINT uq_photo_likes_photo_visitor UNIQUE (photo_id, visitor_hash)
 );
 
+CREATE TABLE IF NOT EXISTS photo_views (
+  id BIGSERIAL PRIMARY KEY,
+  photo_id BIGINT NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+  visitor_hash TEXT NOT NULL,
+  viewed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ip INET,
+  user_agent TEXT,
+  referer TEXT,
+  extra_metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE TABLE IF NOT EXISTS photo_downloads (
+  id BIGSERIAL PRIMARY KEY,
+  photo_id BIGINT NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+  visitor_hash TEXT NOT NULL,
+  downloaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ip INET,
+  user_agent TEXT,
+  referer TEXT,
+  extra_metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
 CREATE INDEX IF NOT EXISTS idx_photos_shot_time_desc ON photos (shot_time DESC);
 CREATE INDEX IF NOT EXISTS idx_photos_category ON photos (category);
 CREATE INDEX IF NOT EXISTS idx_photos_year ON photos (year);
@@ -136,3 +158,9 @@ CREATE INDEX IF NOT EXISTS idx_photos_published_shot_time ON photos (is_publishe
 CREATE INDEX IF NOT EXISTS idx_photos_published_like_count ON photos (is_published, like_count DESC);
 CREATE INDEX IF NOT EXISTS idx_photos_published_view_count ON photos (is_published, view_count DESC);
 CREATE INDEX IF NOT EXISTS idx_photos_published_download_count ON photos (is_published, download_count DESC);
+CREATE INDEX IF NOT EXISTS idx_photo_views_photo_id ON photo_views (photo_id);
+CREATE INDEX IF NOT EXISTS idx_photo_downloads_photo_id ON photo_downloads (photo_id);
+CREATE INDEX IF NOT EXISTS idx_photo_views_photo_visitor ON photo_views (photo_id, visitor_hash);
+CREATE INDEX IF NOT EXISTS idx_photo_downloads_photo_visitor ON photo_downloads (photo_id, visitor_hash);
+CREATE INDEX IF NOT EXISTS idx_photo_views_viewed_at ON photo_views (viewed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_photo_downloads_downloaded_at ON photo_downloads (downloaded_at DESC);
