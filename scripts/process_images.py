@@ -75,7 +75,7 @@ def map_exif_value(value: Any, mapping: Dict[str, str]) -> str | None:
         if key in mapping:
             return mapping[key]
 
-    default_term = mapping.get("default", "Unknown")
+    default_term = mapping.get("default", "未知")
     return f"{default_term} ({safe_value})"
 
 
